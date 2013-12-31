@@ -1,17 +1,22 @@
 package com.idiot2ger.beluga.messagebus;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Message;
+import android.os.Process;
 import android.util.SparseArray;
 
 /**
@@ -21,6 +26,8 @@ import android.util.SparseArray;
  */
 public final class MessageBusImp implements IMessageBus {
 
+
+  private static final int DEFAULT_THREAD_NUMS = 5;
 
   // all class cache
   private Set<Class<?>> mClassCache = new HashSet<Class<?>>();
@@ -34,6 +41,10 @@ public final class MessageBusImp implements IMessageBus {
   private static MessageBusImp mInstance;
 
   private Handler mHandler;
+
+  private ExecutorService mExecutorService;
+
+  private final AtomicInteger mCounter = new AtomicInteger(0);
 
   /**
    * get message bus instance
@@ -55,6 +66,21 @@ public final class MessageBusImp implements IMessageBus {
         processMessage(msg);
       }
     };
+
+    // thread pool
+    mExecutorService = Executors.newFixedThreadPool(DEFAULT_THREAD_NUMS, new ThreadFactory() {
+      @Override
+      public Thread newThread(final Runnable r) {
+        return new Thread() {
+          @Override
+          public void run() {
+            setName("async_handle #" + mCounter.incrementAndGet());
+            Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+            r.run();
+          }
+        };
+      }
+    });
   }
 
   @Override
@@ -71,64 +97,98 @@ public final class MessageBusImp implements IMessageBus {
       throw new IllegalArgumentException("unRegister to the message bus, the object can not be NULL");
     }
     // remove from object cache
-    Collection<Set<Object>> objSets = mObjectCache.values();
-    for (Set<Object> set : objSets) {
-      set.remove(object);
+    final Class<?> cls = object.getClass();
+    Set<Object> objSet = mObjectCache.get(cls);
+    if (objSet != null) {
+      objSet.remove(object);
     }
   }
 
   private void processMessage(final Message message) {
+    final int messageId = message.what;
+    final List<MethodProcessor> processorList = mProcessorCache.get(messageId);
+    final Object messagePassObj = message.obj;
+    if (processorList != null) {
+      // loop
+      for (MethodProcessor p : processorList) {
+        Set<Object> objectSet = mObjectCache.get(p.cls);
+        if (objectSet != null) {
+          for (Object obj : objectSet) {
+            invokeMethod(p, obj, messagePassObj);
+          }
+        }
+      }
+    }
+  }
 
+
+  private void invokeMethod(final MethodProcessor processor, final Object intanceObj, final Object argObj) {
+    final Class<?> pCls = processor.parameterCls;
+    final Method method = processor.method;
+    if (processor.isAsync) {
+      final Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+          invokeMethod2(pCls, method, intanceObj, argObj);
+        }
+      };
+      mExecutorService.execute(runnable);
+    } else {
+      invokeMethod2(pCls, method, intanceObj, argObj);
+    }
+  }
+
+  private void invokeMethod2(Class<?> parameterCls, Method method, Object intanceObj, Object argObj) {
+    try {
+      if (parameterCls != null) {
+        method.invoke(intanceObj, parameterCls.cast(argObj));
+      } else {
+        method.invoke(intanceObj, (Object[]) null);
+      }
+    } catch (IllegalAccessException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (IllegalArgumentException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (InvocationTargetException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
   }
 
   @Override
   public void post(int messageId) {
-    // TODO Auto-generated method stub
-
+    post(messageId, 0);
   }
 
   @Override
   public void post(int messageId, long delay) {
-    // TODO Auto-generated method stub
-
+    mHandler.sendEmptyMessageDelayed(messageId, delay);
   }
 
   @Override
   public void post(int messageId, Object object) {
-    // TODO Auto-generated method stub
-
+    post(messageId, object, 0);
   }
 
   @Override
   public void post(int messageId, Object object, long delay) {
-    // TODO Auto-generated method stub
-
+    final Message message = mHandler.obtainMessage(messageId, object);
+    message.setTarget(mHandler);
+    mHandler.sendMessageDelayed(message, delay);
   }
 
   @Override
   public void postImmediate(int messageId) {
-    // TODO Auto-generated method stub
-
+    postImmediate(messageId, null);
   }
 
   @Override
   public void postImmediate(int messageId, Object object) {
-    // TODO Auto-generated method stub
-
+    final Message message = mHandler.obtainMessage(messageId, object);
+    processMessage(message);
   }
-
-  @Override
-  public Object postImmediate2(int messageId) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-  @Override
-  public Object postImmediate2(int messageId, Object object) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
 
   private void findAnnotationAndCache(Object object) {
     final Class<?> cls = object.getClass();
@@ -146,9 +206,19 @@ public final class MessageBusImp implements IMessageBus {
                 + " cannot has MessageHandle and MessageAsyncHandle annotations at same time");
           } else {
             if (isMH || isAMH) {
+
+              // here check the method parameter argus
+              final Class<?>[] argClsArray = method.getParameterTypes();
+              if (argClsArray != null && argClsArray.length > 1) {
+                throw new RuntimeException("class:" + cls.getName() + ", method:" + method.getName()
+                    + " MUST have less and equal than one parameters");
+              }
+
+
               // create the processor
               final MethodProcessor processor = new MethodProcessor();
               processor.cls = cls;
+              processor.parameterCls = argClsArray == null ? null : argClsArray[0];
               if (isMH) {
                 processor.messageId = method.getAnnotation(MessageHandle.class).messageId();
               } else if (isAMH) {
@@ -156,6 +226,7 @@ public final class MessageBusImp implements IMessageBus {
               }
               processor.method = method;
               processor.isAsync = isAMH;
+
 
               List<MethodProcessor> processorList = mProcessorCache.get(processor.messageId);
               if (processorList == null) {
@@ -186,6 +257,7 @@ public final class MessageBusImp implements IMessageBus {
     int messageId;
     Method method;
     boolean isAsync;
+    Class<?> parameterCls;
 
     @Override
     public boolean equals(Object o) {
