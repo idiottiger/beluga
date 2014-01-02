@@ -46,5 +46,7 @@ public interface IMessageBus {
   public void postImmediate(int messageId);
 
   public void postImmediate(int messageId, Object object);
+  
+  public void release();
 
 }

@@ -20,11 +20,24 @@ import android.os.Process;
 import android.util.SparseArray;
 
 /**
+ * <b><h2>usage:</h2></b> <li>1.invoke {@link MessageBus#getInstance()} to get the message bus
+ * instance, this class is the singleton</li><li>2.use {@link #register(Object)} register the object
+ * which has methods want to process the message</li><li>3.add the annotation {@link MessageHandle}
+ * or {@link MessageAsyncHandle} to your method
+ * <p>
+ * <b>** the annotation MUST set the {@link MessageHandle#messageId()} and
+ * {@link MessageAsyncHandle#messageId()}, and the method MUST contain zero or one argument, if the
+ * argument is the primitive data types, MUST use the object type, such as: int will use
+ * Integer**</b>
+ * </p>
+ * </li><li>4.use the {@link #post} method to post the message, you can pass the object and set
+ * delay</li> <li>5. if don't need to process the message, invoke {@link #unRegister(Object)}</li>
+ * <li>6. finally, invoke {@link #release()} to release this intance</li> </p>
  * 
  * @author idiot2ger
  * 
  */
-public final class MessageBusImp implements IMessageBus {
+public final class MessageBus implements IMessageBus {
 
 
   private static final int DEFAULT_THREAD_NUMS = 5;
@@ -38,7 +51,7 @@ public final class MessageBusImp implements IMessageBus {
   // method cache
   private SparseArray<List<MethodProcessor>> mProcessorCache = new SparseArray<List<MethodProcessor>>();
 
-  private static MessageBusImp mInstance;
+  private static MessageBus mInstance;
 
   private Handler mHandler;
 
@@ -46,24 +59,28 @@ public final class MessageBusImp implements IMessageBus {
 
   private final AtomicInteger mCounter = new AtomicInteger(0);
 
+  private volatile boolean isReleased;
+
   /**
    * get message bus instance
    * 
    * @return
    */
-  public static MessageBusImp getInstance() {
+  public static MessageBus getInstance() {
     if (mInstance == null) {
-      mInstance = new MessageBusImp();
+      mInstance = new MessageBus();
     }
     return mInstance;
   }
 
   @SuppressLint("HandlerLeak")
-  private MessageBusImp() {
+  private MessageBus() {
     mHandler = new Handler() {
       @Override
       public void handleMessage(Message msg) {
-        processMessage(msg);
+        if (!isReleased) {
+          processMessage(msg);
+        }
       }
     };
 
@@ -104,13 +121,16 @@ public final class MessageBusImp implements IMessageBus {
     }
   }
 
-  private void processMessage(final Message message) {
+  private synchronized void processMessage(final Message message) {
     final int messageId = message.what;
     final List<MethodProcessor> processorList = mProcessorCache.get(messageId);
     final Object messagePassObj = message.obj;
     if (processorList != null) {
       // loop
       for (MethodProcessor p : processorList) {
+        if (isReleased) {
+          break;
+        }
         Set<Object> objectSet = mObjectCache.get(p.cls);
         if (objectSet != null) {
           for (Object obj : objectSet) {
@@ -218,7 +238,7 @@ public final class MessageBusImp implements IMessageBus {
               // create the processor
               final MethodProcessor processor = new MethodProcessor();
               processor.cls = cls;
-              processor.parameterCls = argClsArray == null ? null : argClsArray[0];
+              processor.parameterCls = (argClsArray == null || argClsArray.length == 0) ? null : argClsArray[0];
               if (isMH) {
                 processor.messageId = method.getAnnotation(MessageHandle.class).messageId();
               } else if (isAMH) {
@@ -230,7 +250,7 @@ public final class MessageBusImp implements IMessageBus {
 
               List<MethodProcessor> processorList = mProcessorCache.get(processor.messageId);
               if (processorList == null) {
-                processorList = new ArrayList<MessageBusImp.MethodProcessor>();
+                processorList = new ArrayList<MessageBus.MethodProcessor>();
                 mProcessorCache.put(processor.messageId, processorList);
               }
 
@@ -241,6 +261,10 @@ public final class MessageBusImp implements IMessageBus {
           }
         }
       }
+
+
+      // add to the class cache
+      mClassCache.add(cls);
     }
 
     // add object to cache
@@ -267,5 +291,14 @@ public final class MessageBusImp implements IMessageBus {
       return false;
     }
 
+  }
+
+  @Override
+  public synchronized void release() {
+    isReleased = true;
+    mExecutorService.shutdownNow();
+    mClassCache.clear();
+    mObjectCache.clear();
+    mProcessorCache.clear();
   }
 }
