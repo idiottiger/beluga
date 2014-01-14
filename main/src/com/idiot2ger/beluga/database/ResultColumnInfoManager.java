@@ -154,6 +154,10 @@ class ResultColumnInfoManager {
     return result;
   }
 
+  public void release() {
+    mColumnInfoCache.clear();
+  }
+
   class ResultColumnInfoItem {
     Field field;
     ResultColumnInfo info;

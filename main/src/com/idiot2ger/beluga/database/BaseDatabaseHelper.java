@@ -410,6 +410,7 @@ public class BaseDatabaseHelper extends SQLiteOpenHelper {
   public void release() {
     mExecutor.shutdown();
     close();
+    mColumnManager.release();
   }
 
 }
