@@ -30,7 +30,7 @@ import android.view.inputmethod.InputMethodManager;
  * @author idiot2ger
  * 
  */
-public class Injector {
+class Injector {
 
   private Injector() {
 
