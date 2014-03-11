@@ -1,6 +1,9 @@
 package com.idiot2ger.beluga.inject;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -74,6 +77,11 @@ class Injector {
             item = new InjectViewItem(field, field.getAnnotation(InjectView.class));
           } else if (field.isAnnotationPresent(InjectService.class)) {
             item = new InjectServiceItem(field);
+          } else if (field.isAnnotationPresent(Inject.class)) {
+            // check the field class type's annotation
+            if (field.getType().isAnnotationPresent(Singleton.class)) {
+              item = new InjectSingletonItem(field);
+            }
           }
           if (item != null) {
             set.add(item);
@@ -181,4 +189,72 @@ class Injector {
 
   }
 
+
+  private static class InjectSingletonItem extends InjectItem {
+
+    private Class<?> cls;
+
+    private static HashMap<Class<?>, Object> sSingletonMap = new HashMap<Class<?>, Object>();
+
+    public InjectSingletonItem(Field f) {
+      super(f);
+      cls = f.getType();
+
+      if (!sSingletonMap.containsKey(cls)) {
+        // check
+        Constructor<?>[] conList = cls.getDeclaredConstructors();
+        if (conList != null && conList.length > 0) {
+          boolean find = false;
+          Constructor<?> constructor = null;
+          for (Constructor<?> con : conList) {
+            if (con.getModifiers() == Modifier.PRIVATE && con.getParameterTypes().length == 0) {
+              find = true;
+              constructor = con;
+              break;
+            }
+          }
+          if (!find) {
+            throw new IllegalArgumentException(cls.getName()
+                + " with the @Singleton must has a private and non-arg class constructor");
+          }
+
+          // init it
+          constructor.setAccessible(true);
+          try {
+            Object value = cls.cast(constructor.newInstance((Object[]) null));
+            sSingletonMap.put(cls, value);
+          } catch (InstantiationException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          } catch (IllegalAccessException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          } catch (IllegalArgumentException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          } catch (InvocationTargetException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          }
+        }
+
+
+      }
+    }
+
+    @Override
+    public void initField(Object caller, Object object) {
+      if (sSingletonMap.containsKey(cls)) {
+        try {
+          field.setAccessible(true);
+          field.set(caller, sSingletonMap.get(cls));
+        } catch (IllegalAccessException e) {
+          e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+
+  }
 }
