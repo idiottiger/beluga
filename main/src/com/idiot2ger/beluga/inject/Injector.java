@@ -33,30 +33,20 @@ import android.view.inputmethod.InputMethodManager;
  * @author idiot2ger
  * 
  */
-class Injector {
+public final class Injector {
 
   private Injector() {
 
   }
 
-  private static Injector sInjector;
+  private final static Map<Class<?>, HashSet<InjectItem>> mInjectItemMap = new HashMap<Class<?>, HashSet<InjectItem>>();
 
-
-  private Map<Class<?>, HashSet<InjectItem>> mInjectItemMap = new HashMap<Class<?>, HashSet<InjectItem>>();
-
-  public static final Injector getInstance() {
-    if (sInjector == null) {
-      sInjector = new Injector();
-    }
-    return sInjector;
-  }
-
-  public void inject(Object object) {
+  public static void inject(Object object) {
     inject(object, object);
   }
 
 
-  public void inject(Object object, Object injectProvider) {
+  public static void inject(Object object, Object injectProvider) {
     if (object == null) {
       throw new IllegalArgumentException("when inject, the object must not be null");
     }
