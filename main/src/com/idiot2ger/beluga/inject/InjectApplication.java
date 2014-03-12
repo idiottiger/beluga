@@ -2,6 +2,8 @@ package com.idiot2ger.beluga.inject;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
 
 public class InjectApplication extends Application {
 
@@ -9,9 +11,11 @@ public class InjectApplication extends Application {
   public void onCreate() {
     super.onCreate();
 
-    // save context to the global
+    // global inject init
     Injector.putGlobalInject(Context.class, getApplicationContext());
-   
+    Injector.putGlobalInject(AssetManager.class, getAssets());
+    Injector.putGlobalInject(Resources.class, getResources());
+
   }
 
 

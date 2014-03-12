@@ -44,7 +44,14 @@ public final class Injector {
   private final static Map<Class<?>, Object> mGlobalInjectMap = new HashMap<Class<?>, Object>();
 
 
-  static void putGlobalInject(Class<?> cls, Object object) {
+  /**
+   * put the global inject object to the map, you can insert your object, when use @Inject it can
+   * inject from the map
+   * 
+   * @param cls
+   * @param object
+   */
+  public static void putGlobalInject(Class<?> cls, Object object) {
     mGlobalInjectMap.put(cls, object);
   }
 
