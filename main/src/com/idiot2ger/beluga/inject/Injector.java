@@ -41,6 +41,13 @@ public final class Injector {
 
   private final static Map<Class<?>, HashSet<InjectItem>> mInjectItemMap = new HashMap<Class<?>, HashSet<InjectItem>>();
 
+  final static Map<Class<?>, Object> mGlobalInjectMap = new HashMap<Class<?>, Object>();
+
+
+  static void putGlobalInject(Class<?> cls, Object object) {
+    mGlobalInjectMap.put(cls, object);
+  }
+
   public static void inject(Object object) {
     inject(object, object);
   }
@@ -69,16 +76,23 @@ public final class Injector {
             item = new InjectServiceItem(field);
           } else if (field.isAnnotationPresent(Inject.class)) {
             // check the field class type's annotation
-            if (field.getType().isAnnotationPresent(Singleton.class)) {
+            final Class<?> fieldType = field.getType();
+            if (fieldType.isAnnotationPresent(Singleton.class)) {
               item = new InjectSingletonItem(field);
+            }// find in the global inject
+            else if (mGlobalInjectMap.containsKey(fieldType)) {
+              setField(field, object, mGlobalInjectMap.get(fieldType));
             }
           }
           if (item != null) {
             set.add(item);
           }
         }
-        mInjectItemMap.put(cls, set);
-        injectSet = set;
+
+        if (!set.isEmpty()) {
+          mInjectItemMap.put(cls, set);
+          injectSet = set;
+        }
       }
     }
 
@@ -89,6 +103,17 @@ public final class Injector {
     }
   }
 
+
+  private static void setField(Field field, Object caller, Object value) {
+    try {
+      field.setAccessible(true);
+      field.set(caller, field.getType().cast(value));
+    } catch (IllegalAccessException e) {
+      e.printStackTrace();
+    } catch (IllegalArgumentException e) {
+      e.printStackTrace();
+    }
+  }
 
   private static abstract class InjectItem {
     protected Field field;
