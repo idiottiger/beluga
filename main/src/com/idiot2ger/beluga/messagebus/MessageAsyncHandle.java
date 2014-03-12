@@ -16,5 +16,11 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface MessageAsyncHandle {
-  public int messageId() default 0;
+
+  /**
+   * message id
+   * 
+   * @return
+   */
+  public int value() default 0;
 }

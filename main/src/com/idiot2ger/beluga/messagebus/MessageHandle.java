@@ -21,5 +21,5 @@ public @interface MessageHandle {
    * 
    * @return
    */
-  public int messageId() default 0;
+  public int value() default 0;
 }

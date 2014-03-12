@@ -11,6 +11,7 @@ public class InjectApplication extends Application {
 
     // save context to the global
     Injector.putGlobalInject(Context.class, getApplicationContext());
+   
   }
 
 

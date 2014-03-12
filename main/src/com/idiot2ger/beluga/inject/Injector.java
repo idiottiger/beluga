@@ -41,7 +41,7 @@ public final class Injector {
 
   private final static Map<Class<?>, HashSet<InjectItem>> mInjectItemMap = new HashMap<Class<?>, HashSet<InjectItem>>();
 
-  final static Map<Class<?>, Object> mGlobalInjectMap = new HashMap<Class<?>, Object>();
+  private final static Map<Class<?>, Object> mGlobalInjectMap = new HashMap<Class<?>, Object>();
 
 
   static void putGlobalInject(Class<?> cls, Object object) {

@@ -244,9 +244,9 @@ public final class MessageBus implements IMessageBus {
               processor.cls = cls;
               processor.parameterCls = (argClsArray == null || argClsArray.length == 0) ? null : argClsArray[0];
               if (isMH) {
-                processor.messageId = method.getAnnotation(MessageHandle.class).messageId();
+                processor.messageId = method.getAnnotation(MessageHandle.class).value();
               } else if (isAMH) {
-                processor.messageId = method.getAnnotation(MessageAsyncHandle.class).messageId();
+                processor.messageId = method.getAnnotation(MessageAsyncHandle.class).value();
               }
               processor.method = method;
               processor.isAsync = isAMH;
