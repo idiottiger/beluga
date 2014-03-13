@@ -11,13 +11,15 @@ public class InjectApplication extends Application {
   public void onCreate() {
     super.onCreate();
 
+    // preload
+    Injector.preloadInject(this);
+
     // global inject init
     Injector.putGlobalInject(Context.class, getApplicationContext());
     Injector.putGlobalInject(AssetManager.class, getAssets());
     Injector.putGlobalInject(Resources.class, getResources());
 
   }
-
 
 
 }

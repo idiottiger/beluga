@@ -7,6 +7,8 @@ import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -40,28 +42,7 @@ public final class Injector {
   }
 
   private final static Map<Class<?>, HashSet<InjectItem>> sInjectItemMap = new HashMap<Class<?>, HashSet<InjectItem>>();
-
   private final static Map<Class<?>, Object> sGlobalInjectMap = new HashMap<Class<?>, Object>();
-  private static HashMap<Class<?>, String> sServiceMap = new HashMap<Class<?>, String>();
-
-
-  static {
-    sServiceMap.put(WindowManager.class, Context.WINDOW_SERVICE);
-    sServiceMap.put(LayoutInflater.class, Context.LAYOUT_INFLATER_SERVICE);
-    sServiceMap.put(ActivityManager.class, Context.ACTIVITY_SERVICE);
-    sServiceMap.put(PowerManager.class, Context.POWER_SERVICE);
-    sServiceMap.put(AlarmManager.class, Context.ALARM_SERVICE);
-    sServiceMap.put(NotificationManager.class, Context.NOTIFICATION_SERVICE);
-    sServiceMap.put(KeyguardManager.class, Context.KEYGUARD_SERVICE);
-    sServiceMap.put(SearchManager.class, Context.SEARCH_SERVICE);
-    sServiceMap.put(Vibrator.class, Context.VIBRATOR_SERVICE);
-    sServiceMap.put(ConnectivityManager.class, Context.CONNECTIVITY_SERVICE);
-    sServiceMap.put(WifiManager.class, Context.WIFI_SERVICE);
-    sServiceMap.put(ConnectivityManager.class, Context.CONNECTIVITY_SERVICE);
-    sServiceMap.put(InputMethodManager.class, Context.INPUT_METHOD_SERVICE);
-    sServiceMap.put(UiModeManager.class, Context.UI_MODE_SERVICE);
-    sServiceMap.put(DownloadManager.class, Context.DOWNLOAD_SERVICE);
-  }
 
 
   /**
@@ -77,6 +58,41 @@ public final class Injector {
 
   public static void inject(Object object) {
     inject(object, object);
+  }
+
+  static void preloadInject(InjectApplication application) {
+    preloadServiceInject(application);
+  }
+
+  static void unloadInject() {
+    sInjectItemMap.clear();
+    sGlobalInjectMap.clear();
+  }
+
+  private static void preloadServiceInject(Context context) {
+    final Map<Class<?>, String> serviceMap = new HashMap<Class<?>, String>();
+
+    serviceMap.put(WindowManager.class, Context.WINDOW_SERVICE);
+    serviceMap.put(LayoutInflater.class, Context.LAYOUT_INFLATER_SERVICE);
+    serviceMap.put(ActivityManager.class, Context.ACTIVITY_SERVICE);
+    serviceMap.put(PowerManager.class, Context.POWER_SERVICE);
+    serviceMap.put(AlarmManager.class, Context.ALARM_SERVICE);
+    serviceMap.put(NotificationManager.class, Context.NOTIFICATION_SERVICE);
+    serviceMap.put(KeyguardManager.class, Context.KEYGUARD_SERVICE);
+    serviceMap.put(SearchManager.class, Context.SEARCH_SERVICE);
+    serviceMap.put(Vibrator.class, Context.VIBRATOR_SERVICE);
+    serviceMap.put(ConnectivityManager.class, Context.CONNECTIVITY_SERVICE);
+    serviceMap.put(WifiManager.class, Context.WIFI_SERVICE);
+    serviceMap.put(ConnectivityManager.class, Context.CONNECTIVITY_SERVICE);
+    serviceMap.put(InputMethodManager.class, Context.INPUT_METHOD_SERVICE);
+    serviceMap.put(UiModeManager.class, Context.UI_MODE_SERVICE);
+    serviceMap.put(DownloadManager.class, Context.DOWNLOAD_SERVICE);
+
+    Set<Entry<Class<?>, String>> entrySet = serviceMap.entrySet();
+    for (Entry<Class<?>, String> entry : entrySet) {
+      sGlobalInjectMap.put(entry.getKey(), context.getSystemService(entry.getValue()));
+    }
+    serviceMap.clear();
   }
 
 
@@ -108,8 +124,6 @@ public final class Injector {
             else if (sGlobalInjectMap.containsKey(fieldType)) {
               setField(field, object, sGlobalInjectMap.get(fieldType));
               continue;
-            } else if (sServiceMap.containsKey(fieldType)) {
-              item = new InjectServiceItem(field);
             }
           }
           if (item != null) {
@@ -186,32 +200,6 @@ public final class Injector {
     }
   }
 
-  private static class InjectServiceItem extends InjectItem {
-
-    public InjectServiceItem(Field f) {
-      super(f);
-    }
-
-    @Override
-    public void initField(Object caller, Object object) {
-      Class<?> serviceType = field.getType();
-      String serviceName = sServiceMap.get(serviceType);
-      if (serviceName != null) {
-        try {
-          field.setAccessible(true);
-          Object value = ((Context) object).getSystemService(serviceName);
-          field.set(caller, field.getType().cast(value));
-        } catch (IllegalAccessException e) {
-          e.printStackTrace();
-        } catch (IllegalArgumentException e) {
-          e.printStackTrace();
-        }
-      }
-    }
-
-  }
-
-
   private static class InjectSingletonItem extends InjectItem {
 
     private Class<?> cls;
@@ -259,8 +247,6 @@ public final class Injector {
             e.printStackTrace();
           }
         }
-
-
       }
     }
 
