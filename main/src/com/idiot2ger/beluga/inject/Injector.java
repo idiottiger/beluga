@@ -118,12 +118,14 @@ public final class Injector {
           } else if (field.isAnnotationPresent(Inject.class)) {
             // check the field class type's annotation
             final Class<?> fieldType = field.getType();
-            if (fieldType.isAnnotationPresent(Singleton.class)) {
-              item = new InjectSingletonItem(field);
-            }// find in the global inject
-            else if (sGlobalInjectMap.containsKey(fieldType)) {
+
+            // find in the global inject
+            // global inject search first
+            if (sGlobalInjectMap.containsKey(fieldType)) {
               setField(field, object, sGlobalInjectMap.get(fieldType));
               continue;
+            } else if (fieldType.isAnnotationPresent(Singleton.class)) {
+              item = new InjectSingletonItem(field);
             }
           }
           if (item != null) {
@@ -204,13 +206,11 @@ public final class Injector {
 
     private Class<?> cls;
 
-    private static HashMap<Class<?>, Object> sSingletonMap = new HashMap<Class<?>, Object>();
-
     public InjectSingletonItem(Field f) {
       super(f);
       cls = f.getType();
 
-      if (!sSingletonMap.containsKey(cls)) {
+      if (!sGlobalInjectMap.containsKey(cls)) {
         // check
         Constructor<?>[] conList = cls.getDeclaredConstructors();
         if (conList != null && conList.length > 0) {
@@ -232,7 +232,7 @@ public final class Injector {
           constructor.setAccessible(true);
           try {
             Object value = cls.cast(constructor.newInstance((Object[]) null));
-            sSingletonMap.put(cls, value);
+            sGlobalInjectMap.put(cls, value);
           } catch (InstantiationException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -252,10 +252,10 @@ public final class Injector {
 
     @Override
     public void initField(Object caller, Object object) {
-      if (sSingletonMap.containsKey(cls)) {
+      if (sGlobalInjectMap.containsKey(cls)) {
         try {
           field.setAccessible(true);
-          field.set(caller, sSingletonMap.get(cls));
+          field.set(caller, sGlobalInjectMap.get(cls));
         } catch (IllegalAccessException e) {
           e.printStackTrace();
         } catch (IllegalArgumentException e) {
