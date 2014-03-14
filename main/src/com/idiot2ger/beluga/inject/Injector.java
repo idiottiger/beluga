@@ -13,12 +13,15 @@ import java.util.Set;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
+import android.app.Application;
 import android.app.DownloadManager;
 import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.app.SearchManager;
 import android.app.UiModeManager;
 import android.content.Context;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.PowerManager;
@@ -30,10 +33,19 @@ import android.view.inputmethod.InputMethodManager;
 
 
 /**
- * injector
+ * injector core class</p> <b>How to use ?</b> </p> <li>1.use {@link #initializeInject(Application)}
+ * to init the injector, suggestion invoke in the {@link Application#onCreate()} method</li> <li>
+ * 2.if you want to customise your own inject object, you can use
+ * {@link #putGlobalInject(Class, Object)} to add, but currently only support singleton instance</li>
+ * <li>3.use {@link Inject} or {@link InjectView} or {@link Singleton} to your field or class
+ * declare</li><li>4.before use the field, you need invoke {@link #inject(Object)} or
+ * {@link #inject(Object, Object)} to inject</li> <li>5.you can use {@link #destroyInject()} to
+ * release all</li></p>
  * 
  * @author idiot2ger
- * 
+ * @see Inject
+ * @see InjectView
+ * @see Singleton
  */
 public final class Injector {
 
@@ -60,11 +72,23 @@ public final class Injector {
     inject(object, object);
   }
 
-  static void preloadInject(InjectApplication application) {
+  static void preloadInject(Application application) {
     preloadServiceInject(application);
+    putGlobalInject(Context.class, application.getApplicationContext());
+    putGlobalInject(AssetManager.class, application.getAssets());
+    putGlobalInject(Resources.class, application.getResources());
   }
 
-  static void unloadInject() {
+  /**
+   * injector init
+   * 
+   * @param application
+   */
+  public static void initializeInject(Application application) {
+    preloadInject(application);
+  }
+
+  public static void destroyInject() {
     sInjectItemMap.clear();
     sGlobalInjectMap.clear();
   }
