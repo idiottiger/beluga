@@ -30,12 +30,8 @@ public class Download implements Parcelable {
   Status mStatus;
   int mProgressMax;
 
-
   MessageBus mBus;
-
   DownloadCallback mCallback;
-
-
 
   /**
    * 
@@ -100,6 +96,18 @@ public class Download implements Parcelable {
     return mStatus;
   }
 
+  public boolean isIfExistedWillDelete() {
+    return mIsIfExistedWillDelete;
+  }
+
+  public boolean isIfNetworkRightAutoResume() {
+    return mIsIfNetworkRightAutoResume;
+  }
+
+  public int getProgressMax() {
+    return mProgressMax;
+  }
+
   void setDownloadStatus(Status status) {
     if (status != mStatus) {
       mStatus = status;
@@ -113,6 +121,12 @@ public class Download implements Parcelable {
     setDownloadStatus(Status.STATUS_STOPED);
     if (mCallback != null) {
       mCallback.onDownloadError(errorCode, this);
+    }
+  }
+
+  void setDownloadingProgress(int progress) {
+    if (mCallback != null) {
+      mCallback.onDownloading(progress, this);
     }
   }
 
@@ -155,6 +169,14 @@ public class Download implements Parcelable {
 
     // need init the bus
     mBus = MessageBus.getInstance();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o instanceof Download) {
+      return ((Download) o).mDownloadId == mDownloadId;
+    }
+    return false;
   }
 
   /**

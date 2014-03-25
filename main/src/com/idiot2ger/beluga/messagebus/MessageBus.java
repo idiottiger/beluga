@@ -13,8 +13,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.idiot2ger.beluga.inject.Singleton;
-
 import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Message;
@@ -40,7 +38,6 @@ import android.util.SparseArray;
  * 
  */
 
-@Singleton
 public final class MessageBus implements IMessageBus {
 
 
