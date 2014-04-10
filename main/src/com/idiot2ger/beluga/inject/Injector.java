@@ -28,6 +28,7 @@ import android.os.PowerManager;
 import android.os.Vibrator;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 
@@ -150,6 +151,30 @@ public final class Injector {
               continue;
             } else if (fieldType.isAnnotationPresent(Singleton.class)) {
               item = new InjectSingletonItem(field);
+            }
+          } else if (field.isAnnotationPresent(OnClick.class)) {
+            field.setAccessible(true);
+            Object fieldObject = null;
+            try {
+              fieldObject = field.get(object);
+            } catch (IllegalAccessException e) {
+              // TODO Auto-generated catch block
+              e.printStackTrace();
+            } catch (IllegalArgumentException e) {
+              // TODO Auto-generated catch block
+              e.printStackTrace();
+            }
+            if (fieldObject instanceof OnClickListener) {
+              OnClick onClick = field.getAnnotation(OnClick.class);
+              int length = onClick.value().length;
+              if (length == 1 && onClick.value()[0] == -1) {
+                continue;
+              }
+              item = new InjectOnClickItem(field, onClick);
+            } else if (fieldObject == null) {
+              throw new IllegalStateException("OnClick: the filed object must init before use");
+            } else {
+              throw new IllegalArgumentException("OnClick: the filed object must instance of OnClickListener");
             }
           }
           if (item != null) {
@@ -285,6 +310,50 @@ public final class Injector {
         } catch (IllegalArgumentException e) {
           e.printStackTrace();
         }
+      }
+    }
+
+  }
+
+  private static class InjectOnClickItem extends InjectItem {
+
+    int[] idList;
+
+    public InjectOnClickItem(Field f, OnClick onClick) {
+      super(f);
+      int length = onClick.value().length;
+      idList = new int[length];
+      System.arraycopy(onClick.value(), 0, idList, 0, length);
+    }
+
+    @Override
+    public void initField(Object caller, Object object) {
+      // need init all id's layout
+
+      View view = null;
+      field.setAccessible(true);
+      OnClickListener listener = null;
+
+      if (object instanceof Activity || object instanceof View) {
+        try {
+          listener = (OnClickListener) field.get(caller);
+          for (int id : idList) {
+            if (object instanceof Activity) {
+              view = ((Activity) object).findViewById(id);
+            } else if (object instanceof View) {
+              view = ((View) object).findViewById(id);
+            }
+            view.setOnClickListener(listener);
+          }
+        } catch (IllegalAccessException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+        }
+      } else {
+        throw new IllegalArgumentException("OnClick: the object must be the instanceof Activity or View");
       }
     }
 
