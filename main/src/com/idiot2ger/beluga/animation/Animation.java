@@ -88,7 +88,7 @@ public abstract class Animation<T> implements IAnimationModel<T> {
 
   public void start() {
     preCheck();
-    if (mState == State.STATE_NONE || mState == State.STATE_STOP || mState == State.STATE_END) {
+    if (mState != State.STATE_START) {
       sendAnimationState(State.STATE_START);
     }
   }
