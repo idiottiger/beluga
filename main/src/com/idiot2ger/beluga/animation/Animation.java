@@ -2,16 +2,9 @@ package com.idiot2ger.beluga.animation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
-import android.os.Build;
-import android.os.Handler;
-import android.os.Message;
-import android.util.Log;
-import android.view.Choreographer;
-import android.view.Choreographer.FrameCallback;
 import android.view.animation.Interpolator;
 
 /**
@@ -28,13 +21,12 @@ import android.view.animation.Interpolator;
  * @author r2d2
  * 
  */
-public abstract class Animation<T> implements IAnimationModel<T> {
+public abstract class Animation<T> implements IAnimation<T> {
 
   static final String TAG = "Animation";
 
   private static final float MAX_FRACTION = 1.0f;
-
-  private static final int MSG_UPDATE_STATE = 1 << 20;
+  private static final AtomicInteger mCounter = new AtomicInteger(10024);
 
   private List<AnimationCallback<T>> mAnimationCallbackList = new ArrayList<AnimationCallback<T>>();
   private ReentrantLock mLock = new ReentrantLock();
@@ -47,21 +39,13 @@ public abstract class Animation<T> implements IAnimationModel<T> {
   private T mStartValue;
   private T mEndValue;
 
-  private AnimationStateHandler mStateHandler = new AnimationStateHandler();
-  private AnimationLooper mLooper;
-
   private Interpolator mInterpolator;
 
-  /**
-   * animation state, there are: START, PAUSE, RESUME, STOP, FINISH
-   * 
-   * @author r2d2
-   * 
-   */
-  public static enum State {
-    STATE_NONE, STATE_START, STATE_PAUSE, STATE_RESUME, STATE_STOP, STATE_END, STATE_RESET
-  }
+  private IAnimationSystem mAnimationSystem;
 
+  private int mRepeatTimes, mTimes;
+
+  private int mId;
 
   public Animation() {
     this(null, null);
@@ -71,11 +55,12 @@ public abstract class Animation<T> implements IAnimationModel<T> {
     mStartValue = start;
     mEndValue = end;
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-      mLooper = new AnimationChoreographerLooper();
-    } else {
-      mLooper = new AnimationHandlerLooper();
-    }
+    mAnimationSystem = AnimationSystem.getInstance();
+
+    mId = mCounter.incrementAndGet();
+    mAnimationSystem.registerAnimationSystem(this);
+
+    mRepeatTimes = 1;
   }
 
   public void setStartValue(T start) {
@@ -86,41 +71,73 @@ public abstract class Animation<T> implements IAnimationModel<T> {
     mEndValue = end;
   }
 
+  public void setLoop(boolean loop) {
+    setRepeatTimes(loop ? -1 : 1);
+  }
+
+  /**
+   * set repeat times
+   * 
+   * @param times, if < 0, mean loop
+   */
+  public void setRepeatTimes(int times) {
+    if (mState == State.STATE_NONE || mState == State.STATE_END || mState == State.STATE_RESET) {
+      mRepeatTimes = times;
+      mTimes = 0;
+    } else {
+      throw new IllegalStateException("when setRepeatTimes, the state must be: STATE_NONE or STATE_END or STATE_RESET");
+    }
+  }
+
+  @Override
   public void start() {
     preCheck();
     if (mState != State.STATE_START) {
-      sendAnimationState(State.STATE_START);
+      reset2();
+      mAnimationSystem.startAnimation(this);
     }
   }
 
+  @Override
   public void pause() {
     preCheck();
     if (mState == State.STATE_START || mState == State.STATE_RESUME) {
-      sendAnimationState(State.STATE_PAUSE);
+      mAnimationSystem.pauseAnimation(this);
     }
   }
 
-
+  @Override
   public void resume() {
     preCheck();
     if (mState == State.STATE_PAUSE) {
-      sendAnimationState(State.STATE_RESUME);
+      mAnimationSystem.resumeAnimation(this);
     }
   }
 
-
+  @Override
   public void stop() {
     preCheck();
     if (mState == State.STATE_START || mState == State.STATE_PAUSE || mState == State.STATE_RESUME) {
-      sendAnimationState(State.STATE_STOP);
+      reset2();
+      mAnimationSystem.stopAnimation(this);
     }
   }
 
-
+  @Override
   public void reset() {
     if (mState != State.STATE_RESET) {
-      sendAnimationState(State.STATE_RESET);
+      reset2();
+      mAnimationSystem.resetAnimation(this);
     }
+  }
+
+  private void reset2() {
+    mTimes = 0;
+  }
+
+  @Override
+  public void release() {
+    mAnimationSystem.unregisterAnimationSystem(this);
   }
 
   public void setInterpolator(Interpolator interpolator) {
@@ -182,30 +199,13 @@ public abstract class Animation<T> implements IAnimationModel<T> {
     }
   }
 
-
-  private void sendAnimationState(State state) {
-    Message message = mStateHandler.obtainMessage(MSG_UPDATE_STATE, state.ordinal(), 0);
-    message.setTarget(mStateHandler);
-    message.sendToTarget();
+  @Override
+  public int getAnimationId() {
+    return mId;
   }
 
-
-  private void processMessage(Message msg) {
-    final int what = msg.what;
-    if (what == MSG_UPDATE_STATE) {
-      final State state = State.values()[msg.arg1];
-
-      // if same, skip
-      if (mState == state) {
-        return;
-      }
-
-      updateAnimationState(state);
-    }
-  }
-
-
-  private void updateAnimationState(State state) {
+  @Override
+  public boolean updateAnimationState(State state) {
     mState = state;
 
     // state callback
@@ -225,16 +225,15 @@ public abstract class Animation<T> implements IAnimationModel<T> {
       if (state == State.STATE_START) {
         mFraction = 0.0f;
       }
-      mLooper.startLoop();
-    } else if (state == State.STATE_PAUSE || state == State.STATE_STOP) {
-      mLooper.stopLoop();
     } else if (state == State.STATE_RESET) {
-      mLooper.stopLoop();
       mFraction = 0.0f;
     }
+
+    return true;
   }
 
-  private void animationLoop() {
+  @Override
+  public final void animationRunning() {
     mCurrentTime = now();
     mFraction += (((float) (mCurrentTime - mPreviousTime)) / mDuration);
     mFraction = Math.min(mFraction, MAX_FRACTION);
@@ -256,116 +255,19 @@ public abstract class Animation<T> implements IAnimationModel<T> {
     mPreviousTime = mCurrentTime;
 
     if (mFraction >= MAX_FRACTION) {
-      sendAnimationState(State.STATE_END);
-      mLooper.stopLoop();
+      mTimes++;
+      if (mTimes < 0) {
+        mTimes = 0;
+      }
+      if (mRepeatTimes < 0 || mRepeatTimes > mTimes) {
+        mCurrentTime = mPreviousTime = now();
+        mFraction = 0.0f;
+      } else {
+        mAnimationSystem.markAnimationEnd(this);
+      }
     }
   }
 
 
-  private static interface AnimationLooper {
 
-    public void startLoop();
-
-    public void stopLoop();
-
-  }
-
-
-  private class AnimationHandlerLooper implements AnimationLooper {
-
-    private Handler mHandler;
-    private Runnable mRunnable;
-    private volatile boolean mIsRunning;
-
-    AnimationHandlerLooper() {
-      mHandler = new Handler();
-
-      mRunnable = new Runnable() {
-        @Override
-        public void run() {
-          if (!mIsRunning) {
-            return;
-          }
-          animationLoop();
-          mHandler.post(mRunnable);
-        }
-      };
-
-      mIsRunning = false;
-      Log.w(TAG, "using AnimationHandlerLooper...");
-    }
-
-    @Override
-    public void startLoop() {
-      mIsRunning = true;
-      mHandler.removeCallbacks(mRunnable);
-      mHandler.post(mRunnable);
-    }
-
-    @Override
-    public void stopLoop() {
-      mIsRunning = false;
-      mHandler.removeCallbacks(mRunnable);
-    }
-
-  }
-
-
-  @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
-  private class AnimationChoreographerLooper implements AnimationLooper {
-
-    private Choreographer mChoreographer;
-    private FrameCallback mCallback;
-    private volatile boolean mIsRunning;
-
-    AnimationChoreographerLooper() {
-      mChoreographer = Choreographer.getInstance();
-
-      mCallback = new FrameCallback() {
-
-        @Override
-        public void doFrame(long frameTimeNanos) {
-          if (!mIsRunning) {
-            return;
-          }
-          animationLoop();
-          mChoreographer.postFrameCallback(mCallback);
-        }
-      };
-
-      mIsRunning = false;
-
-      Log.w(TAG, "using AnimationChoreographerLooper...");
-    }
-
-    @Override
-    public void startLoop() {
-      mIsRunning = true;
-      mChoreographer.removeFrameCallback(mCallback);
-      mChoreographer.postFrameCallback(mCallback);
-    }
-
-    @Override
-    public void stopLoop() {
-      mIsRunning = false;
-      mChoreographer.removeFrameCallback(mCallback);
-    }
-
-  }
-
-
-
-  /**
-   * 
-   * @author r2d2
-   * 
-   */
-  @SuppressLint("HandlerLeak")
-  private class AnimationStateHandler extends Handler {
-
-    @Override
-    public void handleMessage(Message msg) {
-      processMessage(msg);
-    }
-  }
 }

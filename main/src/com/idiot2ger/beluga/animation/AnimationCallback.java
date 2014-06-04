@@ -1,6 +1,6 @@
 package com.idiot2ger.beluga.animation;
 
-import com.idiot2ger.beluga.animation.Animation.State;
+import com.idiot2ger.beluga.animation.IAnimation.State;
 
 /**
  * 

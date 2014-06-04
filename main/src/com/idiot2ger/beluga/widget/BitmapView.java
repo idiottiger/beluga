@@ -14,8 +14,8 @@ import android.view.ScaleGestureDetector.OnScaleGestureListener;
 import android.view.View;
 
 import com.idiot2ger.beluga.animation.Animation;
-import com.idiot2ger.beluga.animation.Animation.State;
 import com.idiot2ger.beluga.animation.AnimationCallback;
+import com.idiot2ger.beluga.animation.IAnimation.State;
 import com.idiot2ger.beluga.widget.DoubleTapDetector.DoubleTapListener;
 
 public class BitmapView extends View implements OnScaleGestureListener, DoubleTapListener {
