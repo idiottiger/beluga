@@ -81,4 +81,11 @@ public interface IAnimation<T> {
    */
   public void release();
 
+  /**
+   * get current animation state
+   * 
+   * @return
+   */
+  public State getAnimationState();
+
 }

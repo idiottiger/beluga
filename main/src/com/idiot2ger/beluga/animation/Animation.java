@@ -28,7 +28,10 @@ public abstract class Animation<T> implements IAnimation<T> {
   private static final float MAX_FRACTION = 1.0f;
   private static final AtomicInteger mCounter = new AtomicInteger(10024);
 
-  private List<AnimationCallback<T>> mAnimationCallbackList = new ArrayList<AnimationCallback<T>>();
+  private List<AnimationCallback<T>> mAnimationCallbacks = new ArrayList<AnimationCallback<T>>();
+  private List<AnimationStateChangeCallback> mAnimationStateCallbacks = new ArrayList<AnimationStateChangeCallback>();
+
+
   private ReentrantLock mLock = new ReentrantLock();
   private State mState = State.STATE_NONE;
 
@@ -138,6 +141,13 @@ public abstract class Animation<T> implements IAnimation<T> {
   @Override
   public void release() {
     mAnimationSystem.unregisterAnimationSystem(this);
+    removeAllCallback();
+    removeAllStateChangeCallback();
+  }
+
+  @Override
+  public State getAnimationState() {
+    return mState;
   }
 
   public void setInterpolator(Interpolator interpolator) {
@@ -173,7 +183,7 @@ public abstract class Animation<T> implements IAnimation<T> {
   public void addCallback(AnimationCallback<T> callback) {
     mLock.lock();
     try {
-      mAnimationCallbackList.add(callback);
+      mAnimationCallbacks.add(callback);
     } finally {
       mLock.unlock();
     }
@@ -183,7 +193,7 @@ public abstract class Animation<T> implements IAnimation<T> {
   public void removeCallback(AnimationCallback<T> callback) {
     mLock.lock();
     try {
-      mAnimationCallbackList.remove(callback);
+      mAnimationCallbacks.remove(callback);
     } finally {
       mLock.unlock();
     }
@@ -193,7 +203,36 @@ public abstract class Animation<T> implements IAnimation<T> {
   public void removeAllCallback() {
     mLock.lock();
     try {
-      mAnimationCallbackList.clear();
+      mAnimationCallbacks.clear();
+    } finally {
+      mLock.unlock();
+    }
+  }
+
+  public void addStateChangeCallback(AnimationStateChangeCallback callback) {
+    mLock.lock();
+    try {
+      mAnimationStateCallbacks.add(callback);
+    } finally {
+      mLock.unlock();
+    }
+  }
+
+
+  public void removeStateChangeCallback(AnimationStateChangeCallback callback) {
+    mLock.lock();
+    try {
+      mAnimationStateCallbacks.remove(callback);
+    } finally {
+      mLock.unlock();
+    }
+  }
+
+
+  public void removeAllStateChangeCallback() {
+    mLock.lock();
+    try {
+      mAnimationStateCallbacks.clear();
     } finally {
       mLock.unlock();
     }
@@ -211,8 +250,8 @@ public abstract class Animation<T> implements IAnimation<T> {
     // state callback
     mLock.lock();
     try {
-      for (AnimationCallback<?> callback : mAnimationCallbackList) {
-        callback.onAnimationStateChanged(state);
+      for (AnimationStateChangeCallback callback : mAnimationStateCallbacks) {
+        callback.onAnimationStateChanged(this, state);
       }
     } finally {
       mLock.unlock();
@@ -245,7 +284,7 @@ public abstract class Animation<T> implements IAnimation<T> {
 
     mLock.lock();
     try {
-      for (AnimationCallback<T> callback : mAnimationCallbackList) {
+      for (AnimationCallback<T> callback : mAnimationCallbacks) {
         callback.onAnimationing(mFraction, value);
       }
     } finally {

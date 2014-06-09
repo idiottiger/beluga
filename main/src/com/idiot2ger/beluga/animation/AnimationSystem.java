@@ -41,7 +41,7 @@ class AnimationSystem implements IAnimationSystem {
   private AnimationSystem() {
     mAnimations.clear();
     mRunningAnimations.clear();
-    
+
     mStateHandler = new AnimationStateHandler();
 
     // init
@@ -264,7 +264,8 @@ class AnimationSystem implements IAnimationSystem {
           if (result) {
             if (newState == State.STATE_START || newState == State.STATE_RESUME) {
               mLooper.startLoop(animation);
-            } else if (newState == State.STATE_PAUSE || newState == State.STATE_STOP || newState == State.STATE_END) {
+            } else if (newState == State.STATE_PAUSE || newState == State.STATE_STOP || newState == State.STATE_END
+                || newState == State.STATE_RESET) {
               mLooper.stopLoop(animation);
             }
           }

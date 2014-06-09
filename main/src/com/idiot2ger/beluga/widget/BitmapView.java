@@ -15,6 +15,7 @@ import android.view.View;
 
 import com.idiot2ger.beluga.animation.Animation;
 import com.idiot2ger.beluga.animation.AnimationCallback;
+import com.idiot2ger.beluga.animation.AnimationStateChangeCallback;
 import com.idiot2ger.beluga.animation.IAnimation.State;
 import com.idiot2ger.beluga.widget.DoubleTapDetector.DoubleTapListener;
 
@@ -80,19 +81,21 @@ public class BitmapView extends View implements OnScaleGestureListener, DoubleTa
 
     mAnimation.addCallback(new AnimationCallback<Float5Value>() {
       @Override
-      public void onAnimationStateChanged(State state) {
+      public void onAnimationing(float fraction, Float5Value value) {
+        mDrawMatrix.postScale(value.scale, value.scale, value.centerX, value.centerY);
+        mDrawMatrix.postTranslate(value.x, value.y);
+        invalidate();
+      }
+    });
+
+    mAnimation.addStateChangeCallback(new AnimationStateChangeCallback() {
+      @Override
+      public void onAnimationStateChanged(Animation<?> animation, State state) {
         if (state == State.STATE_START) {
           mMode = Mode.ANIMATION;
         } else if (state == State.STATE_END) {
           mMode = Mode.NONE;
         }
-      }
-
-      @Override
-      public void onAnimationing(float fraction, Float5Value value) {
-        mDrawMatrix.postScale(value.scale, value.scale, value.centerX, value.centerY);
-        mDrawMatrix.postTranslate(value.x, value.y);
-        invalidate();
       }
     });
   }
