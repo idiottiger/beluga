@@ -163,9 +163,10 @@ public abstract class Animation<T> implements IAnimation<T> {
     if (mDuration == -1) {
       throw new IllegalStateException("need setDuration");
     }
-    if (mStartValue == null || mEndValue == null) {
-      throw new IllegalStateException("need setStartValue and setEndValue");
-    }
+//    if (mStartValue == null || mEndValue == null) {
+//      throw new IllegalStateException("need setStartValue and setEndValue");
+//    }
+    
   }
 
   private long now() {
